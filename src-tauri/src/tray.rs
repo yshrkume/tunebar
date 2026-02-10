@@ -1,8 +1,9 @@
 use tauri::{
-    menu::{Menu, MenuItem},
+    menu::{CheckMenuItemBuilder, Menu, MenuItem, PredefinedMenuItem},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
     AppHandle, Manager, WebviewUrl, WebviewWindowBuilder,
 };
+use tauri_plugin_autostart::ManagerExt;
 use tauri_plugin_positioner::{Position, WindowExt};
 
 const MAIN_WINDOW_LABEL: &str = "main";
@@ -14,7 +15,15 @@ const WINDOW_HEIGHT: f64 = 600.0;
 const USER_AGENT: &str = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.3 Safari/605.1.15";
 
 pub fn create_tray(app: &AppHandle) -> tauri::Result<()> {
-    let quit_item = MenuItem::with_id(app, "quit", "Quit TuneBar", true, None::<&str>)?;
+    // Check current autostart state
+    let autostart_enabled = app
+        .autolaunch()
+        .is_enabled()
+        .unwrap_or(false);
+
+    let launch_login_item = CheckMenuItemBuilder::with_id("launch_login", "Launch at Login")
+        .checked(autostart_enabled)
+        .build(app)?;
     let pip_item = MenuItem::with_id(
         app,
         "pip",
@@ -22,7 +31,15 @@ pub fn create_tray(app: &AppHandle) -> tauri::Result<()> {
         true,
         None::<&str>,
     )?;
-    let menu = Menu::with_items(app, &[&pip_item, &quit_item])?;
+    let separator = PredefinedMenuItem::separator(app)?;
+    let quit_item = MenuItem::with_id(app, "quit", "Quit TuneBar", true, None::<&str>)?;
+
+    let menu = Menu::with_items(
+        app,
+        &[&launch_login_item, &pip_item, &separator, &quit_item],
+    )?;
+
+    let launch_login_clone = launch_login_item.clone();
 
     TrayIconBuilder::new()
         .icon(app.default_window_icon().unwrap().clone())
@@ -36,6 +53,17 @@ pub fn create_tray(app: &AppHandle) -> tauri::Result<()> {
             "pip" => {
                 if let Some(window) = app.get_webview_window(MAIN_WINDOW_LABEL) {
                     let _ = window.eval("window.__MUSIC_BRIDGE__?.requestPiP()");
+                }
+            }
+            "launch_login" => {
+                let autolaunch = app.autolaunch();
+                let currently_enabled = autolaunch.is_enabled().unwrap_or(false);
+                if currently_enabled {
+                    let _ = autolaunch.disable();
+                    let _ = launch_login_clone.set_checked(false);
+                } else {
+                    let _ = autolaunch.enable();
+                    let _ = launch_login_clone.set_checked(true);
                 }
             }
             _ => {}

@@ -15,6 +15,7 @@ pub fn run() {
                 let _ = window.set_focus();
             }
         }))
+        .plugin(tauri_plugin_autostart::Builder::new().build())
         .plugin(tauri_plugin_positioner::init())
         .manage(MediaState::new())
         .invoke_handler(tauri::generate_handler![
