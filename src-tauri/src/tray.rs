@@ -128,14 +128,22 @@ fn create_main_window(app: &AppHandle) {
     .user_agent(USER_AGENT)
     .on_navigation(|url| {
         let host = url.host_str().unwrap_or("");
-        let allowed = [
-            "music.youtube.com",
-            "accounts.google.com",
-            "consent.youtube.com",
-            "www.youtube.com",
-            "accounts.youtube.com",
+        // YouTube Music uses many Google-owned domains internally
+        // (iframes, analytics, APIs, auth, etc.)
+        let allowed_suffixes = [
+            "youtube.com",
+            "google.com",
+            "googleapis.com",
+            "gstatic.com",
+            "googlevideo.com",
+            "googletagmanager.com",
+            "googleusercontent.com",
+            "ytimg.com",
         ];
-        if allowed.iter().any(|d| host == *d || host.ends_with(&format!(".{}", d))) {
+        if allowed_suffixes
+            .iter()
+            .any(|s| host == *s || host.ends_with(&format!(".{}", s)))
+        {
             true
         } else {
             // Open in system browser
