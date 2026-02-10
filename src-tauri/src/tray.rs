@@ -1,0 +1,119 @@
+use tauri::{
+    menu::{Menu, MenuItem},
+    tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
+    AppHandle, Manager, WebviewUrl, WebviewWindowBuilder,
+};
+use tauri_plugin_positioner::{Position, WindowExt};
+
+const MAIN_WINDOW_LABEL: &str = "main";
+const WINDOW_WIDTH: f64 = 400.0;
+const WINDOW_HEIGHT: f64 = 600.0;
+// Use Safari UA — WKWebView IS WebKit so this is legitimate.
+// Chrome UA gets blocked by Google Sign-In ("This browser may not be secure").
+// Safari UA works for both Google login and YouTube Music.
+const USER_AGENT: &str = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.3 Safari/605.1.15";
+
+pub fn create_tray(app: &AppHandle) -> tauri::Result<()> {
+    let quit_item = MenuItem::with_id(app, "quit", "Quit TuneBar", true, None::<&str>)?;
+    let pip_item = MenuItem::with_id(
+        app,
+        "pip",
+        "Picture in Picture",
+        true,
+        None::<&str>,
+    )?;
+    let menu = Menu::with_items(app, &[&pip_item, &quit_item])?;
+
+    TrayIconBuilder::new()
+        .icon(app.default_window_icon().unwrap().clone())
+        .tooltip("TuneBar")
+        .menu(&menu)
+        .show_menu_on_left_click(false)
+        .on_menu_event(move |app, event| match event.id().as_ref() {
+            "quit" => {
+                app.exit(0);
+            }
+            "pip" => {
+                if let Some(window) = app.get_webview_window(MAIN_WINDOW_LABEL) {
+                    let _ = window.eval("window.__MUSIC_BRIDGE__?.requestPiP()");
+                }
+            }
+            _ => {}
+        })
+        .on_tray_icon_event(|tray, event| {
+            tauri_plugin_positioner::on_tray_event(tray.app_handle(), &event);
+            if let TrayIconEvent::Click {
+                button: MouseButton::Left,
+                button_state: MouseButtonState::Up,
+                ..
+            } = event
+            {
+                let app = tray.app_handle();
+                toggle_popover(app);
+            }
+        })
+        .build(app)?;
+
+    Ok(())
+}
+
+fn toggle_popover(app: &AppHandle) {
+    if let Some(window) = app.get_webview_window(MAIN_WINDOW_LABEL) {
+        if window.is_visible().unwrap_or(false) {
+            let _ = window.hide();
+        } else {
+            let _ = window.move_window(Position::TrayBottomCenter);
+            let _ = window.show();
+            let _ = window.set_focus();
+        }
+    } else {
+        create_main_window(app);
+    }
+}
+
+fn create_main_window(app: &AppHandle) {
+    let ad_blocker = include_str!("../../src/scripts/ad-blocker.js");
+    let media_bridge = include_str!("../../src/scripts/media-bridge.js");
+    let init_script = format!(
+        r#"
+        // Wait for page to load then inject scripts
+        (function() {{
+            {ad_blocker}
+            {media_bridge}
+        }})();
+        "#
+    );
+
+    let builder = WebviewWindowBuilder::new(
+        app,
+        MAIN_WINDOW_LABEL,
+        WebviewUrl::External("https://music.youtube.com".parse().unwrap()),
+    )
+    .title("TuneBar")
+    .inner_size(WINDOW_WIDTH, WINDOW_HEIGHT)
+    .decorations(false)
+    .always_on_top(true)
+    .visible(false)
+    .skip_taskbar(true)
+    .user_agent(USER_AGENT)
+    .initialization_script(&init_script);
+
+    match builder.build() {
+        Ok(window) => {
+            let _ = window.move_window(Position::TrayBottomCenter);
+            let _ = window.show();
+            let _ = window.set_focus();
+
+            // Hide on focus loss (popover behavior)
+            let win_clone = window.clone();
+            window.on_window_event(move |event| {
+                if let tauri::WindowEvent::Focused(false) = event {
+                    let _ = win_clone.hide();
+                }
+            });
+        }
+        Err(e) => {
+            log::error!("Failed to create main window: {}", e);
+        }
+    }
+}
