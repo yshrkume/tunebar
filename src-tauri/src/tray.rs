@@ -102,12 +102,14 @@ fn toggle_popover(app: &AppHandle) {
 fn create_main_window(app: &AppHandle) {
     let ad_blocker = include_str!("../../src/scripts/ad-blocker.js");
     let media_bridge = include_str!("../../src/scripts/media-bridge.js");
+    let error_handler = include_str!("../../src/scripts/error-handler.js");
     let init_script = format!(
         r#"
         // Wait for page to load then inject scripts
         (function() {{
             {ad_blocker}
             {media_bridge}
+            {error_handler}
         }})();
         "#
     );
@@ -124,6 +126,25 @@ fn create_main_window(app: &AppHandle) {
     .visible(false)
     .skip_taskbar(true)
     .user_agent(USER_AGENT)
+    .on_navigation(|url| {
+        let host = url.host_str().unwrap_or("");
+        let allowed = [
+            "music.youtube.com",
+            "accounts.google.com",
+            "consent.youtube.com",
+            "www.youtube.com",
+            "accounts.youtube.com",
+        ];
+        if allowed.iter().any(|d| host == *d || host.ends_with(&format!(".{}", d))) {
+            true
+        } else {
+            // Open in system browser
+            let _ = std::process::Command::new("open")
+                .arg(url.as_str())
+                .spawn();
+            false
+        }
+    })
     .initialization_script(&init_script);
 
     match builder.build() {

@@ -17,6 +17,7 @@ pub fn run() {
         }))
         .plugin(tauri_plugin_autostart::Builder::new().build())
         .plugin(tauri_plugin_positioner::init())
+        .plugin(tauri_plugin_opener::init())
         .manage(MediaState::new())
         .invoke_handler(tauri::generate_handler![
             commands::update_track_info,
