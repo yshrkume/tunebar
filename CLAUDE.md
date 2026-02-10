@@ -16,7 +16,7 @@ TuneBar is a macOS menu bar YouTube Music player built with Tauri v2 + Vanilla T
 ```
 Tray Icon (menu bar)
   ├─ Left click  → Toggle popover window (YouTube Music in WebView)
-  └─ Right click → Context menu (PiP / Quit)
+  └─ Right click → Context menu (Launch at Login / PiP / Quit)
 
 Popover Window (WebviewWindow)
   ├─ Loads https://music.youtube.com with Safari User-Agent
@@ -39,6 +39,7 @@ Rust Backend
 - **`windows: []` in tauri.conf.json**: Window is created programmatically in `tray.rs`, not declaratively.
 - **`include_str!`**: JS scripts are embedded at compile time. Path is relative to the Rust source file (`src-tauri/src/tray.rs`), so `../../src/scripts/` reaches the frontend scripts directory.
 - **Single-instance**: `tauri-plugin-single-instance` prevents duplicate tray icons from multiple launches.
+- **Launch at Login**: `tauri-plugin-autostart` manages macOS LaunchAgent plist. `CheckMenuItem` in tray menu with state synced via `ManagerExt::autolaunch().is_enabled()` on startup.
 - **`ActivationPolicy::Accessory`**: Hides the app from the Dock — menu bar only.
 
 ## File Conventions

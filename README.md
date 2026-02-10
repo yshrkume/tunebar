@@ -9,6 +9,7 @@ macOS menu bar player for YouTube Music, built with [Tauri v2](https://v2.tauri.
 - Media key support (play/pause/next/previous) via macOS Now Playing
 - Picture-in-Picture mode
 - Ad blocker (CSS-based ad hiding + video ad skipping)
+- Launch at Login (auto-start on macOS login)
 - Single-instance enforcement
 - No Dock icon (menu bar only app)
 
@@ -17,7 +18,7 @@ macOS menu bar player for YouTube Music, built with [Tauri v2](https://v2.tauri.
 | Action | Behavior |
 |--------|----------|
 | Left-click tray icon | Toggle YouTube Music popover |
-| Right-click tray icon | Context menu (PiP / Quit) |
+| Right-click tray icon | Context menu (Launch at Login / PiP / Quit) |
 | Click outside popover | Auto-hide |
 | Media keys | Play/Pause/Next/Previous |
 
@@ -64,6 +65,7 @@ cp -r src-tauri/target/release/bundle/macos/TuneBar.app /Applications/
 - **souvlaki** - macOS media key integration (MPRemoteCommandCenter)
 - **tauri-plugin-positioner** - Window positioning near tray icon
 - **tauri-plugin-single-instance** - Prevents multiple instances
+- **tauri-plugin-autostart** - Launch at Login support
 
 ## License
 
