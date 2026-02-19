@@ -95,11 +95,50 @@ fn toggle_popover(app: &AppHandle) {
             let _ = window.set_focus();
         }
     } else {
-        create_main_window(app);
+        let _ = create_main_window(app, true);
     }
 }
 
-fn create_main_window(app: &AppHandle) {
+pub fn run_remote_command(app: &AppHandle, command: &str) {
+    let window = if let Some(window) = app.get_webview_window(MAIN_WINDOW_LABEL) {
+        window
+    } else if let Some(window) = create_main_window(app, false) {
+        window
+    } else {
+        return;
+    };
+
+    let escaped_command = command.replace('\\', "\\\\").replace('\'', "\\'");
+    let command_js = format!(
+        r#"
+        (function() {{
+            const cmd = '{escaped_command}';
+            const send = () => {{
+                if (window.__MUSIC_BRIDGE__ && typeof window.__MUSIC_BRIDGE__.runCommand === "function") {{
+                    return window.__MUSIC_BRIDGE__.runCommand(cmd);
+                }}
+                return false;
+            }};
+
+            if (send()) {{
+                return;
+            }}
+
+            window.__TUNEBAR_PENDING_REMOTE_COMMAND__ = cmd;
+            let attempts = 0;
+            const timer = setInterval(() => {{
+                attempts += 1;
+                if (send() || attempts >= 40) {{
+                    clearInterval(timer);
+                }}
+            }}, 250);
+        }})();
+        "#
+    );
+    let _ = window.eval(&command_js);
+}
+
+fn create_main_window(app: &AppHandle, show_on_create: bool) -> Option<tauri::WebviewWindow> {
     let ad_blocker = include_str!("../../src/scripts/ad-blocker.js");
     let media_bridge = include_str!("../../src/scripts/media-bridge.js");
     let error_handler = include_str!("../../src/scripts/error-handler.js");
@@ -157,9 +196,11 @@ fn create_main_window(app: &AppHandle) {
 
     match builder.build() {
         Ok(window) => {
-            let _ = window.move_window(Position::TrayBottomCenter);
-            let _ = window.show();
-            let _ = window.set_focus();
+            if show_on_create {
+                let _ = window.move_window(Position::TrayBottomCenter);
+                let _ = window.show();
+                let _ = window.set_focus();
+            }
 
             // Hide on focus loss (popover behavior)
             let win_clone = window.clone();
@@ -168,9 +209,11 @@ fn create_main_window(app: &AppHandle) {
                     let _ = win_clone.hide();
                 }
             });
+            Some(window)
         }
         Err(e) => {
             log::error!("Failed to create main window: {}", e);
+            None
         }
     }
 }

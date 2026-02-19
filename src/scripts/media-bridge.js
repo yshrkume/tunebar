@@ -26,6 +26,16 @@
     return false;
   }
 
+  let pendingRemoteCommand =
+    typeof window.__TUNEBAR_PENDING_REMOTE_COMMAND__ === "string"
+      ? window.__TUNEBAR_PENDING_REMOTE_COMMAND__
+      : null;
+
+  function normalizeRemoteCommand(command) {
+    if (typeof command !== "string") return "";
+    return command.trim().toLowerCase();
+  }
+
   // Public bridge API
   window.__MUSIC_BRIDGE__ = {
     play() {
@@ -94,7 +104,53 @@
         document.exitPictureInPicture().catch(() => {});
       }
     },
+
+    runCommand(command) {
+      const normalized = normalizeRemoteCommand(command);
+      if (!normalized) return true;
+
+      const hasVideo = !!getVideo();
+      const hasPlayer = !!getPlayerApi();
+      if (!hasVideo && !hasPlayer) {
+        pendingRemoteCommand = normalized;
+        window.__TUNEBAR_PENDING_REMOTE_COMMAND__ = normalized;
+        return false;
+      }
+
+      switch (normalized) {
+        case "toggle":
+          this.togglePlay();
+          return true;
+        case "play":
+          this.play();
+          return true;
+        case "pause":
+          this.pause();
+          return true;
+        case "next":
+          this.next();
+          return true;
+        case "previous":
+        case "prev":
+          this.previous();
+          return true;
+        default:
+          console.warn("TuneBar: Unknown remote command:", normalized);
+          return true;
+      }
+    },
   };
+
+  function flushPendingRemoteCommand() {
+    if (!pendingRemoteCommand) return;
+    const command = pendingRemoteCommand;
+    pendingRemoteCommand = null;
+    if (window.__MUSIC_BRIDGE__.runCommand(command)) {
+      window.__TUNEBAR_PENDING_REMOTE_COMMAND__ = null;
+      return;
+    }
+    pendingRemoteCommand = command;
+  }
 
   // Track change detection via MutationObserver
   let lastTitle = "";
@@ -102,6 +158,7 @@
   let lastPlaying = null;
 
   function checkTrackChange() {
+    flushPendingRemoteCommand();
     const state = window.__MUSIC_BRIDGE__.getState();
 
     // Notify Rust on track change
@@ -131,6 +188,7 @@
 
   // Observe player bar for track changes
   function startObserving() {
+    flushPendingRemoteCommand();
     const playerBar =
       document.querySelector("ytmusic-player-bar") || document.body;
 

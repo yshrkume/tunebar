@@ -22,6 +22,22 @@ macOS menu bar player for YouTube Music, built with [Tauri v2](https://v2.tauri.
 | Click outside popover | Auto-hide |
 | Media keys | Play/Pause/Next/Previous |
 
+### Remote Commands
+
+You can control playback from external tools (for example, Raycast):
+
+```bash
+/Applications/TuneBar.app/Contents/MacOS/tunebar --remote toggle
+```
+
+Supported commands:
+
+- `toggle`
+- `play`
+- `pause`
+- `next`
+- `previous`
+
 ## Development
 
 ### Prerequisites
