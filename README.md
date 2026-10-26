@@ -43,7 +43,7 @@ Supported commands:
 
 ### Prerequisites
 
-- [Node.js](https://nodejs.org/) (LTS)
+- [Node.js](https://nodejs.org/) 22.23.4 (pinned in `.node-version`; patched 24.22.1+ and 26.12.1+ lines are also accepted)
 - [Rust](https://www.rust-lang.org/tools/install)
 - Xcode Command Line Tools (`xcode-select --install`)
 
@@ -135,3 +135,36 @@ npm run tauri build -- --bundles app
 The regression tests cover navigation scheme/domain boundaries, deferred commands executing once,
 command ordering and queue limits, state notification deduplication, infinite ad duration, and slow
 page loading. Native launch, reopening, playback and remote pause must also be checked on macOS.
+
+
+### Node.js and certificate incident follow-up (2026-10-26)
+
+The [October Node.js security release](https://nodejs.org/en/blog/vulnerability/october-2026-security-releases)
+fixes DNS/TLS validation, Brotli decoder, and other issues and includes the eMudhra CA response.
+The project now rejects older affected Node releases during installation (`engine-strict=true`).
+Use `fnm use --install-if-missing` with the checked-in `.node-version`, then `npm ci`.
+Node is build tooling; it is not embedded in the shipped Tauri app.
+
+The local WKWebView verification path rejected all 14 published eMudhra test chains with
+certificate errors, while the healthy control connected. Patched Node 22.23.4 and 26.12.1
+also rejected all 14 with `CERT_REVOKED`. These are live checks on this Mac, not a statement
+about other installed applications or their bundled trust stores.
+
+[Apple's advisory](https://support.apple.com/en-us/149555) distinguishes native framework trust
+from `/etc/ssl/cert.pem`, which some built-in CLI tools still use. On this Mac, system curl
+accepted four representative compromised chains (including both cross-signing and no-CT paths);
+Homebrew curl rejected the same four. The system CLI mitigation requires administrator access:
+
+```sh
+python3 scripts/harden-system-ca.py --dry-run
+sudo /usr/bin/python3 scripts/harden-system-ca.py
+```
+
+The script removes emSign ECC Root CA - G3 and AAA Certificate Services from the system CLI
+bundle, validates it, retains `/etc/ssl/cert.pem.before-emudhra-20261026`, and replaces the file
+atomically. It is idempotent. Removing those roots may also reject legitimate sites using other
+intermediates under them. It does not alter Keychain trust or disable certificate verification.
+A macOS update may restore the bundle; rerun the dry run after an OS update until Apple's system
+bundle fix is installed. Script checks: `python3 -B tests/system-ca.test.py`.
+The privileged change was **not applied** during this session because administrator access was
+unavailable. No password should be placed in scripts, commands, or chat.
