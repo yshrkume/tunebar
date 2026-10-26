@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-update-playback-state"
+description = "Enables the update_playback_state command without any pre-configured scope."
+commands.allow = ["update_playback_state"]
+
+[[permission]]
+identifier = "deny-update-playback-state"
+description = "Denies the update_playback_state command without any pre-configured scope."
+commands.deny = ["update_playback_state"]

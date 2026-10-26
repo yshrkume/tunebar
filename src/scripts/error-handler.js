@@ -71,14 +71,7 @@
       return;
     }
 
-    // Wait for YouTube Music SPA to initialize (give it a few seconds)
-    setTimeout(() => {
-      const ytApp = document.querySelector("ytmusic-app");
-      if (!ytApp && !document.querySelector("video")) {
-        // Page likely failed to load properly
-        createOverlay();
-      }
-    }, 5000);
+
   }
 
   if (document.readyState === "loading") {

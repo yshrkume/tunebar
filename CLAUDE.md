@@ -6,7 +6,7 @@ TuneBar is a macOS menu bar YouTube Music player built with Tauri v2 + Vanilla T
 
 ## Commands
 
-- `npm install` — Install dependencies
+- `npm ci` — Install dependencies
 - `npm run tauri dev` — Run in development mode
 - `npm run tauri build` — Build release `.app` and `.dmg`
 - Build output: `src-tauri/target/release/bundle/macos/TuneBar.app`
@@ -50,7 +50,12 @@ Rust Backend
 
 ## Known Constraints
 
-- CSP in `tauri.conf.json` must allow all YouTube/Google domains for music playback and sign-in.
+- CSP in `tauri.conf.json` applies to local bundled content. The remote Music page gets only media IPC permissions through an explicit remote capability and AppManifest. Do not grant core/plugin defaults to remote pages.
 - `souvlaki` v0.7 — media key crate. PlatformConfig `dbus_name`/`display_name` are Linux-only but required by the struct. `hwnd` is Windows-only. macOS needs no special config.
 - Ad blocker selectors may need updating if YouTube Music changes its DOM structure.
 - The app is macOS-only (uses WKWebView, macOS-specific activation policy).
+
+- Validate changes on the current macOS environment; backward compatibility is not required.
+- Native launch and `RunEvent::Reopen` must create/show the player even before a tray click.
+- Injected scripts must run only on the top-level Music origin, after DOMContentLoaded.
+- Run `npm test` and Rust checks for changes to navigation or media command delivery.

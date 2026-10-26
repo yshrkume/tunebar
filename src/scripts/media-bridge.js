@@ -7,15 +7,6 @@
     return document.querySelector("video");
   }
 
-  // Utility: get the player API
-  function getPlayerApi() {
-    const player = document.querySelector("#movie_player");
-    if (player && typeof player.getPlayerState === "function") {
-      return player;
-    }
-    return null;
-  }
-
   // Utility: simulate click on a button by selector
   function clickButton(selector) {
     const btn = document.querySelector(selector);
@@ -26,10 +17,8 @@
     return false;
   }
 
-  let pendingRemoteCommand =
-    typeof window.__TUNEBAR_PENDING_REMOTE_COMMAND__ === "string"
-      ? window.__TUNEBAR_PENDING_REMOTE_COMMAND__
-      : null;
+  const pendingCommands = [];
+  const validCommands = new Set(["toggle", "play", "pause", "next", "previous", "prev"]);
 
   function normalizeRemoteCommand(command) {
     if (typeof command !== "string") return "";
@@ -40,7 +29,7 @@
   window.__MUSIC_BRIDGE__ = {
     play() {
       const video = getVideo();
-      if (video) video.play();
+      if (video) video.play().catch(() => console.warn("TuneBar: playback requires interaction"));
     },
 
     pause() {
@@ -52,7 +41,7 @@
       const video = getVideo();
       if (!video) return;
       if (video.paused) {
-        video.play();
+        video.play().catch(() => console.warn("TuneBar: playback requires interaction"));
       } else {
         video.pause();
       }
@@ -107,16 +96,11 @@
 
     runCommand(command) {
       const normalized = normalizeRemoteCommand(command);
-      if (!normalized) return true;
-
-      const hasVideo = !!getVideo();
-      const hasPlayer = !!getPlayerApi();
-      if (!hasVideo && !hasPlayer) {
-        pendingRemoteCommand = normalized;
-        window.__TUNEBAR_PENDING_REMOTE_COMMAND__ = normalized;
+      if (!validCommands.has(normalized)) return false;
+      if (!getVideo()) {
+        if (pendingCommands.length < 32) pendingCommands.push(normalized);
         return false;
       }
-
       switch (normalized) {
         case "toggle":
           this.togglePlay();
@@ -142,14 +126,9 @@
   };
 
   function flushPendingRemoteCommand() {
-    if (!pendingRemoteCommand) return;
-    const command = pendingRemoteCommand;
-    pendingRemoteCommand = null;
-    if (window.__MUSIC_BRIDGE__.runCommand(command)) {
-      window.__TUNEBAR_PENDING_REMOTE_COMMAND__ = null;
-      return;
-    }
-    pendingRemoteCommand = command;
+    if (!getVideo()) return;
+    const commands = pendingCommands.splice(0);
+    for (const command of commands) window.__MUSIC_BRIDGE__.runCommand(command);
   }
 
   // Track change detection via MutationObserver
@@ -170,7 +149,7 @@
         window.__TAURI_INTERNALS__.invoke("update_track_info", {
           title: state.title,
           artist: state.artist,
-        });
+        }).catch(() => { lastTitle = ""; lastArtist = ""; });
       }
     }
 
@@ -181,7 +160,7 @@
       if (window.__TAURI_INTERNALS__) {
         window.__TAURI_INTERNALS__.invoke("update_playback_state", {
           playing: state.playing,
-        });
+        }).catch(() => { lastPlaying = null; });
       }
     }
   }

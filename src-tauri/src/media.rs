@@ -1,17 +1,15 @@
-use souvlaki::{
-    MediaControlEvent, MediaControls, MediaMetadata, MediaPlayback, PlatformConfig,
-};
-use std::sync::{Arc, Mutex};
+use souvlaki::{MediaControlEvent, MediaControls, MediaMetadata, MediaPlayback, PlatformConfig};
+use std::sync::Mutex;
 use tauri::{AppHandle, Manager};
 
 pub struct MediaState {
-    controls: Arc<Mutex<Option<MediaControls>>>,
+    controls: Mutex<Option<MediaControls>>,
 }
 
 impl MediaState {
     pub fn new() -> Self {
         Self {
-            controls: Arc::new(Mutex::new(None)),
+            controls: Mutex::new(None),
         }
     }
 }
@@ -26,24 +24,22 @@ pub fn setup_media_controls(app: &AppHandle) {
     match MediaControls::new(config) {
         Ok(mut controls) => {
             let app_handle = app.clone();
-            controls
-                .attach(move |event: MediaControlEvent| {
-                    let command = match event {
-                        MediaControlEvent::Play => "play",
-                        MediaControlEvent::Pause => "pause",
-                        MediaControlEvent::Toggle => "togglePlay",
-                        MediaControlEvent::Next => "next",
-                        MediaControlEvent::Previous => "previous",
-                        MediaControlEvent::Stop => "pause",
-                        _ => return,
-                    };
+            if let Err(error) = controls.attach(move |event: MediaControlEvent| {
+                let command = match event {
+                    MediaControlEvent::Play => "play",
+                    MediaControlEvent::Pause => "pause",
+                    MediaControlEvent::Toggle => "toggle",
+                    MediaControlEvent::Next => "next",
+                    MediaControlEvent::Previous => "previous",
+                    MediaControlEvent::Stop => "pause",
+                    _ => return,
+                };
 
-                    if let Some(window) = app_handle.get_webview_window("main") {
-                        let js = format!("window.__MUSIC_BRIDGE__?.{}()", command);
-                        let _ = window.eval(&js);
-                    }
-                })
-                .ok();
+                crate::tray::run_remote_command(&app_handle, command);
+            }) {
+                eprintln!("TuneBar: failed to attach media controls: {error:?}");
+                return;
+            }
 
             if let Some(state) = app.try_state::<MediaState>() {
                 if let Ok(mut lock) = state.controls.lock() {
@@ -52,7 +48,7 @@ pub fn setup_media_controls(app: &AppHandle) {
             }
         }
         Err(e) => {
-            log::error!("Failed to create media controls: {:?}", e);
+            eprintln!("TuneBar: failed to create media controls: {e:?}");
         }
     }
 }
@@ -61,14 +57,14 @@ pub fn update_metadata(app: &AppHandle, title: &str, artist: &str) {
     if let Some(state) = app.try_state::<MediaState>() {
         if let Ok(mut lock) = state.controls.lock() {
             if let Some(controls) = lock.as_mut() {
-                controls
-                    .set_metadata(MediaMetadata {
-                        title: Some(title),
-                        artist: Some(artist),
-                        album: None,
-                        ..Default::default()
-                    })
-                    .ok();
+                if let Err(error) = controls.set_metadata(MediaMetadata {
+                    title: Some(title),
+                    artist: Some(artist),
+                    album: None,
+                    ..Default::default()
+                }) {
+                    eprintln!("TuneBar: failed to update media metadata: {error:?}");
+                }
             }
         }
     }
@@ -83,7 +79,9 @@ pub fn update_playback(app: &AppHandle, playing: bool) {
                 } else {
                     MediaPlayback::Paused { progress: None }
                 };
-                controls.set_playback(playback).ok();
+                if let Err(error) = controls.set_playback(playback) {
+                    eprintln!("TuneBar: failed to update playback state: {error:?}");
+                }
             }
         }
     }

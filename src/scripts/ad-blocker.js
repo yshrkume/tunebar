@@ -24,14 +24,8 @@
     tp-yt-paper-dialog:has(ytmusic-premium-upsell-dialog-renderer),
     /* Masthead ads */
     #masthead-ad,
-    .ytd-primetime-promo-renderer,
-    /* "Browser not supported" banner (shown for Safari UA) */
-    ytmusic-you-there-renderer,
-    [class*="browser-not-supported"],
-    [class*="unsupported-browser"],
-    .ytmusic-mealbar-promo-renderer[data-type="BROWSER_UNSUPPORTED"],
-    paper-dialog:has([icon="yt-icons:chrome"]),
-    tp-yt-paper-dialog:has(.promo-body) {
+    .ytd-primetime-promo-renderer
+ {
       display: none !important;
     }
   `;
@@ -50,8 +44,9 @@
 
     if (adPlaying) {
       // Skip to end of ad
-      video.currentTime = video.duration || 0;
-      video.playbackRate = 16;
+      if (Number.isFinite(video.duration) && video.duration > 0) {
+        try { video.currentTime = video.duration; } catch { /* Not seekable yet. */ }
+      }
 
       // Click skip button if available
       const skipBtn =

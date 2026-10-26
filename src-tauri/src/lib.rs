@@ -3,7 +3,6 @@ mod media;
 mod tray;
 
 use media::MediaState;
-use tauri::Manager;
 
 #[derive(Clone, Copy)]
 enum RemoteCommand {
@@ -41,7 +40,9 @@ fn parse_remote_command(args: &[String]) -> Option<RemoteCommand> {
     let mut args_iter = args.iter();
     while let Some(arg) = args_iter.next() {
         if arg == "--remote" {
-            return args_iter.next().and_then(|command| RemoteCommand::from_str(command));
+            return args_iter
+                .next()
+                .and_then(|command| RemoteCommand::from_str(command));
         }
     }
     None
@@ -57,15 +58,16 @@ pub fn run() {
             }
 
             // When a second instance is launched without remote command, show the popover.
-            if let Some(window) = app.get_webview_window("main") {
-                let _ = window.show();
-                let _ = window.set_focus();
-            }
+            tray::show_popover(app);
         }))
-        .plugin(tauri_plugin_autostart::Builder::new().build())
+        .plugin(
+            tauri_plugin_autostart::Builder::new()
+                .args(["--background"])
+                .build(),
+        )
         .plugin(tauri_plugin_positioner::init())
-        .plugin(tauri_plugin_opener::init())
         .manage(MediaState::new())
+        .manage(std::sync::Mutex::new(tray::RemoteState::default()))
         .invoke_handler(tauri::generate_handler![
             commands::update_track_info,
             commands::update_playback_state,
@@ -75,7 +77,9 @@ pub fn run() {
             #[cfg(target_os = "macos")]
             {
                 use tauri::ActivationPolicy;
-                let _ = app.handle().set_activation_policy(ActivationPolicy::Accessory);
+                let _ = app
+                    .handle()
+                    .set_activation_policy(ActivationPolicy::Accessory);
             }
 
             tray::create_tray(app.handle())?;
@@ -84,10 +88,18 @@ pub fn run() {
             let startup_args: Vec<String> = std::env::args().collect();
             if let Some(command) = parse_remote_command(&startup_args) {
                 tray::run_remote_command(app.handle(), command.as_bridge_command());
+            } else if !startup_args.iter().any(|arg| arg == "--background") {
+                tray::show_popover(app.handle());
             }
 
             Ok(())
         })
-        .run(tauri::generate_context!())
-        .expect("error while running TuneBar");
+        .build(tauri::generate_context!())
+        .expect("error while building TuneBar")
+        .run(|app, event| {
+            #[cfg(target_os = "macos")]
+            if let tauri::RunEvent::Reopen { .. } = event {
+                tray::show_popover(app);
+            }
+        });
 }
