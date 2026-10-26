@@ -151,9 +151,9 @@ also rejected all 14 with `CERT_REVOKED`. These are live checks on this Mac, not
 about other installed applications or their bundled trust stores.
 
 [Apple's advisory](https://support.apple.com/en-us/149555) distinguishes native framework trust
-from `/etc/ssl/cert.pem`, which some built-in CLI tools still use. On this Mac, system curl
+from `/etc/ssl/cert.pem`, which some built-in CLI tools still use. Before mitigation, system curl
 accepted four representative compromised chains (including both cross-signing and no-CT paths);
-Homebrew curl rejected the same four. The system CLI mitigation requires administrator access:
+Homebrew curl rejected the same four. Applying the system CLI mitigation requires administrator access:
 
 ```sh
 python3 scripts/harden-system-ca.py --dry-run
@@ -166,5 +166,8 @@ atomically. It is idempotent. Removing those roots may also reject legitimate si
 intermediates under them. It does not alter Keychain trust or disable certificate verification.
 A macOS update may restore the bundle; rerun the dry run after an OS update until Apple's system
 bundle fix is installed. Script checks: `python3 -B tests/system-ca.test.py`.
-The privileged change was **not applied** during this session because administrator access was
-unavailable. No password should be placed in scripts, commands, or chat.
+The mitigation was applied by the administrator on 2026-10-26. Verification confirmed that the
+system bundle contains 126 certificates (previously 128), both targeted roots are absent, and the
+backup exists. System curl now rejects all 14 published compromised test chains with certificate
+verification error 60; the healthy control still returns HTTP 200. A repeated dry run reports
+already protected. No password should be placed in scripts, commands, or chat.
